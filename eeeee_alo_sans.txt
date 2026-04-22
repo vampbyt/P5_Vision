@@ -1,0 +1,4 @@
+Normalmente no se puede obtener el resultado de [-2, 2, 2, -1] con el valor de w = 1, pero sí genera la línea
+de división entre las dos clases. 
+Si se fuerza al programa a obtener el resultado [-2, 2, 2, -1] se tiene que ocupar los valores de 
+w1 = -1, w2 = 2, w3 = 3 y w4 = 0.
