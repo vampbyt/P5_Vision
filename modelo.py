@@ -22,10 +22,12 @@ class Modelo:
         iteracion = 0
         ha_convergido = False
         num_patrones = len(self.X)
+        self.historial = []  # lista de cambios para mostrar en pantalla
 
         while not ha_convergido and iteracion < self.max_iter:
             iteracion += 1
             errores = 0
+            cambios_iter = []  # cambios dentro de esta iteración
 
             for i in range(num_patrones):
                 x = self.X[i]
@@ -40,8 +42,20 @@ class Modelo:
                         self.W = self.W + self.eta * x
                     else:
                         self.W = self.W - self.eta * x
-            
+                    cambios_iter.append({
+                        'patron': i,
+                        'A': int(x[1]), 'B': int(x[2]), 'C': int(x[3]),
+                        'y': y, 'c': c,
+                        'W': self.W.copy()
+                    })
+
+            self.historial.append({
+                'iteracion': iteracion,
+                'errores': errores,
+                'cambios': cambios_iter
+            })
+
             if errores == 0:
                 ha_convergido = True
+
         return ha_convergido, iteracion, self.W
-    
