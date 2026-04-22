@@ -3,9 +3,6 @@ import matplotlib.pyplot as plt
 from itertools import product, combinations
 import mplcursors 
 
-# ==========================================
-# 2. LA VISTA (Con Cursor en Ventana)
-# ==========================================
 class Vista:
     def encabezado(self):
         print("\n╔══════════════════════════════════════════╗")
@@ -31,6 +28,26 @@ class Vista:
         print(f"  Pesos finales: W = [{W[0]:+.4f}, {W[1]:+.4f}, {W[2]:+.4f}, {W[3]:+.4f}]")
         print("============================================\n")
 
+    def mostrar_historial(self, historial):
+        print("\n============================================")
+        print("  TRAZA DE ENTRENAMIENTO")
+        print("============================================")
+        for entrada in historial:
+            it = entrada['iteracion']
+            errores = entrada['errores']
+            cambios = entrada['cambios']
+            if cambios:
+                print(f"\n  Iteración {it}  (errores: {errores})")
+                print(f"  {'Patrón':<8} {'A':>2} {'B':>2} {'C':>2}  {'y':>2}  {'c':>2}  {'W resultante'}")
+                print(f"  {'-'*60}")
+                for ch in cambios:
+                    W = ch['W']
+                    Wstr = f"[{W[0]:+.2f}, {W[1]:+.2f}, {W[2]:+.2f}, {W[3]:+.2f}]"
+                    print(f"  {ch['patron']:<8} {ch['A']:>2} {ch['B']:>2} {ch['C']:>2}  {ch['y']:>2}  {ch['c']:>2}  {Wstr}")
+            else:
+                print(f"\n  Iteración {it}  — sin errores => CONVERGIDO")
+        print("============================================\n")
+
     def preguntar_repetir(self):
         respuesta = input("¿Lo quieres volver a intentar? (s/n): ").lower()
         while respuesta not in ['s', 'n']:
@@ -44,7 +61,6 @@ class Vista:
 
         col_c1, col_c2 = '#3373CC', '#D93333'
 
-        # 1. Separar puntos por clase para el cursor
         x0, y0, z0 = [], [], []
         x1, y1, z1 = [], [], []
 
@@ -54,19 +70,15 @@ class Vista:
             else:
                 x1.append(X[i, 1]); y1.append(X[i, 2]); z1.append(X[i, 3])
 
-        # 2. Dibujar puntos y guardar sus "referencias" en variables
         scat_c0 = ax.scatter(x0, y0, z0, color=col_c1, s=100, marker='o', edgecolors='black')
         scat_c1 = ax.scatter(x1, y1, z1, color=col_c2, s=100, marker='^', edgecolors='black')
 
-        # --- 3. LA MAGIA DEL CURSOR INTERACTIVO ---
         cursor = mplcursors.cursor([scat_c0, scat_c1], hover=True)
         
         @cursor.connect("add")
         def al_pasar_cursor(sel):
-            # 1. Obtener el número de lista (índice) del punto que tocamos
             idx = sel.index
             
-            # 2. Buscar las coordenadas exactas dependiendo de qué figura tocamos
             if sel.artist == scat_c0:
                 a, b, c = x0[idx], y0[idx], z0[idx]
                 clase = "1 (Círculos azules)"
@@ -74,22 +86,18 @@ class Vista:
                 a, b, c = x1[idx], y1[idx], z1[idx]
                 clase = "2 (Triángulos rojos)"
             
-            # 3. Aquí cambiamos el texto para que diga A, B, C explícitamente
             texto = f"Entrada A: {a}\nEntrada B: {b}\nEntrada C: {c}\nClase: {clase}"
             sel.annotation.set_text(texto)
             
-            # 4. Forzar el diseño de la cajita blanca
             sel.annotation.get_bbox_patch().set_facecolor('white')
-            sel.annotation.get_bbox_patch().set_edgecolor('black') # Borde negro para que resalte
+            sel.annotation.get_bbox_patch().set_edgecolor('black')
             sel.annotation.get_bbox_patch().set_alpha(0.9)
 
-        # 4. Dibujar aristas del cubo
         r = [0, 1]
         for inicio, fin in combinations(np.array(list(product(r, r, r))), 2):
             if np.sum(np.abs(inicio - fin)) == 1:
                 ax.plot3D(*zip(inicio, fin), color="gray", linewidth=1.2)
 
-        # 5. Dibujar plano de separabilidad
         if W[3] != 0:
             xx, yy = np.meshgrid([0, 1], [0, 1])
             zz = -(W[0] + W[1]*xx + W[2]*yy) / W[3]
@@ -99,5 +107,4 @@ class Vista:
         ax.set_xlabel('A (X_1)'); ax.set_ylabel('B (X_2)'); ax.set_zlabel('C (X_3)')
         ax.view_init(elev=25, azim=40)
         
-        # Mostrar la gráfica en su ventana clásica
         plt.show()
