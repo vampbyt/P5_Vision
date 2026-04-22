@@ -1,61 +1,68 @@
-from itertools import product, combinations
-from numpy import array, zeros, dot
 import numpy as np
 
 class Modelo:
     def __init__(self):
+        # Orden de la libreta: [A, B, C, Bias=1]
         self.X = np.array([
-            [1, 0, 0, 0], [1, 0, 0, 1], [1, 0, 1, 0], [1, 0, 1, 1],
-            [1, 1, 0, 0], [1, 1, 0, 1], [1, 1, 1, 0], [1, 1, 1, 1]
+            # ---- CLASE 1 (C1) ----
+            [0, 0, 0, 1], [1, 0, 1, 1], [1, 0, 0, 1], [1, 1, 0, 1],
+            # ---- CLASE 2 (C2) ----
+            [0, 0, 1, 1], [0, 1, 1, 1], [0, 1, 0, 1], [1, 1, 1, 1]
         ])
+        
+        # 0 representa C1, y 1 representa C2
+        self.C_objetivo = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        self.W = np.zeros(4) 
+        self.eta = 1.0
+        self.historial = [] 
 
-        self.C_objetivo = np.array([0, 0, 1, 0, 1, 0, 1, 1])
-        self.W = np.zeros(4)
-        self.eta = 0.1 
-        self.max_iter = 1000
-
-    def parametros(self, eta, w_inicial):
+    def establecer_parametros(self, eta, w_inicial):
         self.eta = eta
         self.W = np.array(w_inicial, dtype=float)
+        self.historial = [] # Limpiar historial en cada nuevo intento
 
     def entrenar(self):
         iteracion = 0
         ha_convergido = False
         num_patrones = len(self.X)
-        self.historial = []  # lista de cambios para mostrar en pantalla
+        paso_global = 1
 
-        while not ha_convergido and iteracion < self.max_iter:
+        while not ha_convergido and iteracion < 1000:
             iteracion += 1
             errores = 0
-            cambios_iter = []  # cambios dentro de esta iteración
-
+            
             for i in range(num_patrones):
                 x = self.X[i]
                 c = self.C_objetivo[i]
-
+                w_antes = self.W.copy()
+                
+                # Cálculo de Net (Producto punto)
                 red = np.dot(self.W, x)
-                y = 1 if red >= 0 else 0
-
-                if y != c:
+                sancion_str = "0"
+                
+                # REGLA ESTRICTA 
+                if c == 0 and red >= 0:
                     errores += 1
-                    if c == 1 and y == 0:
-                        self.W = self.W + self.eta * x
-                    else:
-                        self.W = self.W - self.eta * x
-                    cambios_iter.append({
-                        'patron': i,
-                        'A': int(x[1]), 'B': int(x[2]), 'C': int(x[3]),
-                        'y': y, 'c': c,
-                        'W': self.W.copy()
-                    })
+                    self.W = self.W - (self.eta * x)
+                    sancion_str = f"-X{paso_global}"
+                elif c == 1 and red <= 0:
+                    errores += 1
+                    self.W = self.W + (self.eta * x)
+                    sancion_str = f"+X{paso_global}"
 
-            self.historial.append({
-                'iteracion': iteracion,
-                'errores': errores,
-                'cambios': cambios_iter
-            })
+                # Guardar registro para la tabla
+                self.historial.append({
+                    'paso': paso_global,
+                    'x': x,
+                    'w_antes': w_antes,
+                    'net': red,
+                    'sancion': sancion_str,
+                    'w_nuevo': self.W.copy(),
+                    'clase': "C1" if c == 0 else "C2"
+                })
+                paso_global += 1
 
             if errores == 0:
                 ha_convergido = True
 
-        return ha_convergido, iteracion, self.W
+        return ha_convergido, iteracion

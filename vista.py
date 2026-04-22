@@ -4,91 +4,73 @@ from itertools import product, combinations
 import mplcursors 
 
 class Vista:
-    def encabezado(self):
-        print("\n╔══════════════════════════════════════════╗")
-        print("║   PERCEPTRÓN 3D (MVC) – Clasificación    ║")
-        print("╚══════════════════════════════════════════╝\n")
-
     def pedir_condiciones_iniciales(self):
-        print("Ingresa las condiciones iniciales (Ej: eta=1, W1=1, W2=1, W3=1, W4=1):")
-        eta = float(input("  eta (tasa de aprendizaje): "))
-        w1 = float(input("  W1 (peso del sesgo X0=1): "))
-        w2 = float(input("  W2 (peso de entrada A   ): "))
-        w3 = float(input("  W3 (peso de entrada B   ): "))
-        w4 = float(input("  W4 (peso de entrada C   ): "))
-        return eta, [w1, w2, w3, w4]
+        print("\n╔════════════════════════════════════════╗")
+        print("║   PERCEPTRÓN 3D                          ║")
+        print("╚══════════════════════════════════════════╝\n")
+        print("Por favor, ingresa las condiciones iniciales:")
+        # Cambiamos los nombres para que sean idénticos a los que buscas
+        r = float(input("  Valor de r (tasa de aprendizaje) : "))
+        w1 = float(input("  Valor de W1 (peso de entrada A)  : "))
+        w2 = float(input("  Valor de W2 (peso de entrada B)  : "))
+        w3 = float(input("  Valor de W3 (peso de entrada C)  : "))
+        w4 = float(input("  Valor de W4 (peso del Bias X0=1) : "))
+        return r, [w1, w2, w3, w4]
 
-    def mostrar_resultados(self, ha_convergido, iteracion, W):
-        print("\n============================================")
-        if ha_convergido:
-            print(f"  Convergencia alcanzada en {iteracion} iteraciones")
-        else:
-            print(f"  SIN convergencia tras {iteracion} iteraciones")
-        print("--------------------------------------------")
-        print(f"  Pesos finales: W = [{W[0]:+.4f}, {W[1]:+.4f}, {W[2]:+.4f}, {W[3]:+.4f}]")
-        print("============================================\n")
+    def imprimir_tabla_historial(self, historial, iteraciones, w_final):
+        print("\n" + "="*80)
+        print(f"{'TABLA DE APRENDIZAJE':^80}")
+        print("="*80)
+        print(f"{'N':<4} | {'Clase':<5} | {'Xn (A,B,C,1)':<14} | {'Wn_T':<16} | {'Net':<4} | {'Sanción':<8} | {'W_nuevo':<16}")
+        print("-" * 80)
+        
+        for fila in historial:
+            x_str = f"{int(fila['x'][0])} {int(fila['x'][1])} {int(fila['x'][2])} {int(fila['x'][3])}"
+            w_ant_str = f"{int(fila['w_antes'][0]):2} {int(fila['w_antes'][1]):2} {int(fila['w_antes'][2]):2} {int(fila['w_antes'][3]):2}"
+            w_nue_str = f"{int(fila['w_nuevo'][0]):2} {int(fila['w_nuevo'][1]):2} {int(fila['w_nuevo'][2]):2} {int(fila['w_nuevo'][3]):2}"
+            
+            if fila['net'] > 0: net_signo = ">0"
+            elif fila['net'] < 0: net_signo = "<0"
+            else: net_signo = "=0"
+            
+            print(f"{fila['paso']:<4} | {fila['clase']:<5} | {x_str:<14} | {w_ant_str:<16} | {net_signo:<4} | {fila['sancion']:<8} | {w_nue_str:<16}")
+        
+        print("="*80)
+        print(f"▶ Resultado final en {iteraciones} iteraciones: W = [{w_final[0]:.0f}, {w_final[1]:.0f}, {w_final[2]:.0f}, {w_final[3]:.0f}]")
+        print("="*80 + "\n")
 
-    def mostrar_historial(self, historial):
-        print("\n============================================")
-        print("  TRAZA DE ENTRENAMIENTO")
-        print("============================================")
-        for entrada in historial:
-            it = entrada['iteracion']
-            errores = entrada['errores']
-            cambios = entrada['cambios']
-            if cambios:
-                print(f"\n  Iteración {it}  (errores: {errores})")
-                print(f"  {'Patrón':<8} {'A':>2} {'B':>2} {'C':>2}  {'y':>2}  {'c':>2}  {'W resultante'}")
-                print(f"  {'-'*60}")
-                for ch in cambios:
-                    W = ch['W']
-                    Wstr = f"[{W[0]:+.2f}, {W[1]:+.2f}, {W[2]:+.2f}, {W[3]:+.2f}]"
-                    print(f"  {ch['patron']:<8} {ch['A']:>2} {ch['B']:>2} {ch['C']:>2}  {ch['y']:>2}  {ch['c']:>2}  {Wstr}")
-            else:
-                print(f"\n  Iteración {it}  — sin errores => CONVERGIDO")
-        print("============================================\n")
-
-    def preguntar_repetir(self):
-        respuesta = input("¿Lo quieres volver a intentar? (s/n): ").lower()
-        while respuesta not in ['s', 'n']:
-            respuesta = input("Respuesta no válida. Escribe s o n: ").lower()
-        return respuesta == 's'
-
-    def dibujar_grafica_3d(self, X, C_objetivo, W, eta, iteracion):
+    def dibujar_grafica_3d(self, X, C_objetivo, W):
+        w_final_str = f"[{W[0]:.0f}, {W[1]:.0f}, {W[2]:.0f}, {W[3]:.0f}]"
+        
         fig = plt.figure('Perceptron 3D - Cubo', figsize=(8, 6))
         ax = fig.add_subplot(111, projection='3d')
-        ax.set_title(f"Perceptrón 3D | eta={eta:.4f} | Iter={iteracion}\nW=[{W[0]:.2f}, {W[1]:.2f}, {W[2]:.2f}, {W[3]:.2f}]")
-
-        col_c1, col_c2 = '#3373CC', '#D93333'
+        ax.set_title(f"Perceptrón - Cubo | Resultado Final\nW = {w_final_str}", fontsize=12, fontweight='bold')
 
         x0, y0, z0 = [], [], []
         x1, y1, z1 = [], [], []
 
         for i in range(len(X)):
             if C_objetivo[i] == 0:
-                x0.append(X[i, 1]); y0.append(X[i, 2]); z0.append(X[i, 3])
+                x0.append(X[i, 0]); y0.append(X[i, 1]); z0.append(X[i, 2])
             else:
-                x1.append(X[i, 1]); y1.append(X[i, 2]); z1.append(X[i, 3])
+                x1.append(X[i, 0]); y1.append(X[i, 1]); z1.append(X[i, 2])
 
-        scat_c0 = ax.scatter(x0, y0, z0, color=col_c1, s=100, marker='o', edgecolors='black')
-        scat_c1 = ax.scatter(x1, y1, z1, color=col_c2, s=100, marker='^', edgecolors='black')
+        scat_c0 = ax.scatter(x0, y0, z0, color='#3373CC', s=100, marker='o', edgecolors='black', label='C1 (Objetivo < 0)')
+        scat_c1 = ax.scatter(x1, y1, z1, color='#D93333', s=100, marker='^', edgecolors='black', label='C2 (Objetivo > 0)')
 
         cursor = mplcursors.cursor([scat_c0, scat_c1], hover=True)
-        
         @cursor.connect("add")
         def al_pasar_cursor(sel):
             idx = sel.index
-            
             if sel.artist == scat_c0:
                 a, b, c = x0[idx], y0[idx], z0[idx]
-                clase = "1 (Círculos azules)"
+                clase = "1 (C1 - Objetivo < 0)"
             else:
                 a, b, c = x1[idx], y1[idx], z1[idx]
-                clase = "2 (Triángulos rojos)"
+                clase = "2 (C2 - Objetivo > 0)"
             
             texto = f"Entrada A: {a}\nEntrada B: {b}\nEntrada C: {c}\nClase: {clase}"
             sel.annotation.set_text(texto)
-            
             sel.annotation.get_bbox_patch().set_facecolor('white')
             sel.annotation.get_bbox_patch().set_edgecolor('black')
             sel.annotation.get_bbox_patch().set_alpha(0.9)
@@ -98,13 +80,15 @@ class Vista:
             if np.sum(np.abs(inicio - fin)) == 1:
                 ax.plot3D(*zip(inicio, fin), color="gray", linewidth=1.2)
 
-        if W[3] != 0:
+        if W[2] != 0:
             xx, yy = np.meshgrid([0, 1], [0, 1])
-            zz = -(W[0] + W[1]*xx + W[2]*yy) / W[3]
+            zz = -(W[3] + W[0]*xx + W[1]*yy) / W[2]
             zz = np.clip(zz, 0, 1)
             ax.plot_surface(xx, yy, zz, alpha=0.5, color='lime', edgecolor='green')
 
         ax.set_xlabel('A (X_1)'); ax.set_ylabel('B (X_2)'); ax.set_zlabel('C (X_3)')
         ax.view_init(elev=25, azim=40)
+        plt.legend(loc='lower right')
         
+        # Esto abre la ventana gráfica (y pausa la consola hasta que se cierre)
         plt.show()
