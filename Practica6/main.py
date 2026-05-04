@@ -1,5 +1,5 @@
-from modelo import Modelo
-from vista import Vista
+from Practica6.modelo import Modelo
+from Practica6.vista import Vista
 
 if __name__ == "__main__":
     modelo = Modelo()

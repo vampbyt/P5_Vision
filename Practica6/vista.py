@@ -36,11 +36,11 @@ class Vista:
             print(f"{fila['paso']:<4} | {fila['clase']:<5} | {x_str:<14} | {w_ant_str:<16} | {net_signo:<4} | {fila['sancion']:<8} | {w_nue_str:<16}")
         
         print("="*80)
-        print(f"▶ Resultado final en {iteraciones} iteraciones: W = [{w_final[0]:.0f}, {w_final[1]:.0f}, {w_final[2]:.0f}, {w_final[3]:.0f}]")
+        print(f"▶ Resultado final en {iteraciones} iteraciones: W = [{w_final[0]:.1f}, {w_final[1]:.1f}, {w_final[2]:.1f}, {w_final[3]:.1f}]")
         print("="*80 + "\n")
 
     def dibujar_grafica_3d(self, X, C_objetivo, W):
-        w_final_str = f"[{W[0]:.0f}, {W[1]:.0f}, {W[2]:.0f}, {W[3]:.0f}]"
+        w_final_str = f"[{W[0]:.0f}, {W[1]:.0f}, {W[2]:.0f}, {W[3]:.2f}]"
         
         fig = plt.figure('Perceptron 3D - Cubo', figsize=(8, 6))
         ax = fig.add_subplot(111, projection='3d')
