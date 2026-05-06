@@ -10,7 +10,7 @@ class KMeansView(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Práctica 7 - Detección por Segmentación (K-Means)")
-        self.resize(1000, 700) 
+        self.resize(1100, 700) 
         
         self.setStyleSheet("""
             QWidget {
@@ -23,7 +23,7 @@ class KMeansView(QWidget):
                 background-color: #000040;
                 border: 2px solid #4D4DFF;
                 border-radius: 5px;
-                padding: 10px;
+                padding: 8px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -48,14 +48,14 @@ class KMeansView(QWidget):
         main_layout = QVBoxLayout()
         control_layout = QHBoxLayout()
         
-        self.btn_load = QPushButton("1. Cargar Dataset (Carpeta)")
+        self.btn_load = QPushButton("1. Cargar Dataset")
         
         self.lbl_k = QLabel("¿K?:")
         self.spin_k = QSpinBox()
         self.spin_k.setRange(2, 20)
         self.spin_k.setValue(3)
         
-        self.lbl_desc = QLabel("¿Descriptores?:")
+        self.lbl_desc = QLabel("Descriptores/Clase:")
         self.spin_desc = QSpinBox()
         self.spin_desc.setRange(100, 100000)
         self.spin_desc.setSingleStep(100)
@@ -64,10 +64,14 @@ class KMeansView(QWidget):
         self.btn_run = QPushButton("2. Entrenar K-Means")
         self.btn_run.setEnabled(False)
 
-        self.btn_test = QPushButton("3. Probar Imagen")
-        self.btn_test.setEnabled(False)
+        # NUEVOS BOTONES SEPARADOS
+        self.btn_load_test = QPushButton("3. Cargar Imagen Prueba")
+        self.btn_load_test.setEnabled(False)
+        
+        self.btn_segment = QPushButton("4. Segmentar Puntos")
+        self.btn_segment.setEnabled(False)
 
-        self.btn_plot = QPushButton("4. Ver Distribución (2D)")
+        self.btn_plot = QPushButton("5. Ver Gráfica (2D)")
         self.btn_plot.setEnabled(False)
 
         control_layout.addWidget(self.btn_load)
@@ -76,10 +80,10 @@ class KMeansView(QWidget):
         control_layout.addWidget(self.lbl_desc)
         control_layout.addWidget(self.spin_desc)
         control_layout.addWidget(self.btn_run)
-        control_layout.addWidget(self.btn_test)
+        control_layout.addWidget(self.btn_load_test)
+        control_layout.addWidget(self.btn_segment)
         control_layout.addWidget(self.btn_plot) 
         
-        # Contenedor central para la imagen única
         images_layout = QHBoxLayout()
         
         self.lbl_img_main = QLabel("Esperando Imagen de Prueba")
@@ -105,11 +109,9 @@ class KMeansView(QWidget):
         q_img = QImage(img_array.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_img)
         
-        # Obtenemos las dimensiones seguras del contenedor para evitar cortes
         max_w = label.width() if label.width() > 100 else 800
         max_h = label.height() if label.height() > 100 else 500
         
-        # Escalado respetando relación de aspecto y con suavizado
         label.setPixmap(pixmap.scaled(
             max_w, max_h, 
             Qt.AspectRatioMode.KeepAspectRatio, 

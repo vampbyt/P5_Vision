@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QFileDialog
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import cv2
 
 class KMeansController:
     def __init__(self, modelo, vista):
@@ -9,9 +10,15 @@ class KMeansController:
         self.view = vista
         self.dataset_path = None
         
+        self.current_test_image = None
+        self.puntos_y = None
+        self.puntos_x = None
+        
         self.view.btn_load.clicked.connect(self.load_dataset)
         self.view.btn_run.clicked.connect(self.run_training)
-        self.view.btn_test.clicked.connect(self.test_single_image)
+        
+        self.view.btn_load_test.clicked.connect(self.load_test_image)
+        self.view.btn_segment.clicked.connect(self.run_segmentation)
         self.view.btn_plot.clicked.connect(self.plot_distribution)
 
     def load_dataset(self):
@@ -29,22 +36,90 @@ class KMeansController:
         self.view.lbl_info.setText("Entrenando... Revisa la terminal.")
         self.view.repaint()
         
-        centroids, converged_iter = self.model.entrenamiento_kmeans_centro(self.dataset_path, k, desc)
+        centroids, converged_iter, history = self.model.entrenamiento_kmeans_centro(self.dataset_path, k, desc)
         
         if centroids is not None:
             info_text = f"¡Entrenamiento Terminado! (Iteraciones: {converged_iter})"
             self.view.lbl_info.setText(info_text)
             
-            print("--- Clases (Centroides) Encontradas ---")
+            # =========================================================
+            # IMPRESIÓN DEL HISTORIAL COMPLETO
+            # =========================================================
+            print("\n--- Historial Completo de Iteraciones ---")
+            # Iteramos sobre TODA la lista 'history' en lugar de solo las últimas 3
+            for idx, hist_cents in enumerate(history):
+                num_iter = idx + 1
+                print(f"Iteración {num_iter}:")
+                for i, c in enumerate(hist_cents):
+                    print(f"  C{i+1}: RGB({int(c[0])}, {int(c[1])}, {int(c[2])})")
+                    
+            print("\n--- Clases (Centroides Finales) ---")
             for i, c in enumerate(centroids):
                 print(f"Clase C{i+1}: RGB({int(c[0])}, {int(c[1])}, {int(c[2])})")
-            print(f"Iteración de convergencia: {converged_iter}")
             
-            self.view.lbl_img_main.setText("Clasificador K-Means Entrenado.\nPresiona 'Probar Imagen'")
-            self.view.btn_test.setEnabled(True) 
+            print(f"\n-> Iteración de convergencia: {converged_iter}")
+            print(f"-> Base indexada generada con {desc} representantes por cada clase.")
+            print(f"-> Total de datos exportados: {k * desc}")
+            # =========================================================
+            
+            self.view.lbl_img_main.setText("K-Means Entrenado.\nPresiona '3. Cargar Imagen Prueba'")
+            
+            self.view.btn_load_test.setEnabled(True) 
             self.view.btn_plot.setEnabled(True)
         else:
             self.view.lbl_info.setText("Error: No se encontraron imágenes.")
+
+    def load_test_image(self):
+        file_name, _ = QFileDialog.getOpenFileName(self.view, "Seleccionar Imagen a Analizar", "", "Images (*.png *.jpg *.jpeg)")
+        if file_name:
+            self.current_test_image = cv2.imread(file_name)
+            img_rgb = cv2.cvtColor(self.current_test_image, cv2.COLOR_BGR2RGB)
+
+            img_h, img_w = img_rgb.shape[:2]
+            total_pixels = img_h * img_w
+            num_puntos = self.model.num_representantes
+
+            indices = np.random.choice(total_pixels, min(num_puntos, total_pixels), replace=False)
+            self.puntos_y = indices // img_w
+            self.puntos_x = indices % img_w
+
+            img_preview = img_rgb.copy()
+            for i in range(len(indices)):
+                cv2.circle(img_preview, (self.puntos_x[i], self.puntos_y[i]), 3, (0,0,0), -1)
+                cv2.circle(img_preview, (self.puntos_x[i], self.puntos_y[i]), 2, (255,255,255), -1)
+
+            self.view.display_image(self.view.lbl_img_main, img_preview)
+            self.view.lbl_info.setText(f"Mostrando {len(indices)} descriptores en blanco.\nPresiona '4. Segmentar Puntos' para clasificarlos.")
+            
+            self.view.btn_segment.setEnabled(True)
+
+    def run_segmentation(self):
+        if self.current_test_image is None: 
+            return
+
+        img_result, puntos_por_clase = self.model.segmentar_imagen_con_puntos(
+            self.current_test_image, self.puntos_y, self.puntos_x
+        )
+        
+        self.view.display_image(self.view.lbl_img_main, img_result)
+        
+        total_puntos = len(self.puntos_x)
+        resultado_texto = f"Clasificación de los {total_puntos} descriptores:\n"
+        for i, count in enumerate(puntos_por_clase):
+            pct = (count / total_puntos) * 100
+            resultado_texto += f"C{i+1}: {count} pts ({pct:.1f}%)  "
+        
+        self.view.lbl_info.setText(resultado_texto)
+        
+        if self.dataset_path:
+            report_path = os.path.join(self.dataset_path, "reporte_clasificacion.txt")
+            with open(report_path, "a", encoding="utf-8") as f:
+                f.write(f"--- Reporte de Descriptores al Azar ---\n")
+                f.write(f"Total analizados: {total_puntos}\n")
+                for i, count in enumerate(puntos_por_clase):
+                    pct = (count / total_puntos) * 100
+                    f.write(f"Clase C{i+1}: {count} descriptores ({pct:.1f}%)\n")
+                f.write("\n")
 
     def plot_distribution(self):
         if self.model.dataset_array is None or self.model.centroids is None:
@@ -91,28 +166,3 @@ class KMeansController:
         ax.grid(True, linestyle='--', alpha=0.4)
         
         plt.show()
-
-    def test_single_image(self):
-        file_name, _ = QFileDialog.getOpenFileName(self.view, "Seleccionar Imagen a Analizar", "", "Images (*.png *.jpg *.jpeg)")
-        if file_name:
-            # Ahora el modelo solo nos devuelve la imagen con cajas y los porcentajes
-            img_result, percentages = self.model.segmentar_con_imagen_prueba(file_name)
-            
-            if img_result is not None:
-                # Enviamos la imagen al único panel que tenemos
-                self.view.display_image(self.view.lbl_img_main, img_result)
-                
-                resultado_texto = "Clasificación:\n"
-                for i, pct in enumerate(percentages):
-                    resultado_texto += f"C{i+1}: {pct:.2f}%  "
-                
-                self.view.lbl_info.setText(resultado_texto)
-                
-                if self.dataset_path:
-                    report_path = os.path.join(self.dataset_path, "reporte_clasificacion.txt")
-                    with open(report_path, "a", encoding="utf-8") as f:
-                        f.write(f"--- Reporte de Prueba ---\n")
-                        f.write(f"Imagen evaluada: {os.path.basename(file_name)}\n")
-                        for i, pct in enumerate(percentages):
-                            f.write(f"Clase C{i+1}: {pct:.2f}%\n")
-                        f.write("\n")

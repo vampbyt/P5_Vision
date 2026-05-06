@@ -7,15 +7,20 @@ class KMeansModel:
         self.centroids = None
         self.dataset_array = None 
         self.final_labels = None  
+        self.num_representantes = 0 
 
-    def entrenamiento_kmeans_centro(self, folder_path, k, total_descriptors):
+    def entrenamiento_kmeans_centro(self, folder_path, k, descriptores_por_clase):
+        self.num_representantes = descriptores_por_clase 
+        
         image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         
         if not image_files:
-            return None, 0
+            return None, 0, None
             
         all_descriptors = []
-        desc_per_image = max(1, total_descriptors // len(image_files))
+        
+        pool_size = max(50000, k * descriptores_por_clase * 5)
+        desc_per_image = max(1, pool_size // len(image_files))
 
         for file_name in image_files:
             img_path = os.path.join(folder_path, file_name)
@@ -40,8 +45,11 @@ class KMeansModel:
 
         max_iters = 100
         converged_iter = max_iters
+        history_centroids = []
 
         for iter_count in range(max_iters):
+            history_centroids.append(centroids.copy())
+            
             distances = np.linalg.norm(dataset_array[:, np.newaxis] - centroids, axis=2)
             labels = np.argmin(distances, axis=1)
 
@@ -64,35 +72,45 @@ class KMeansModel:
         final_distances = np.linalg.norm(dataset_array[:, np.newaxis] - self.centroids, axis=2)
         final_labels = np.argmin(final_distances, axis=1)
         
-        self.dataset_array = dataset_array
-        self.final_labels = final_labels
+        balanced_data = []
+        balanced_labels = []
+        
+        for j in range(k):
+            puntos_clase = dataset_array[final_labels == j]
+            
+            if len(puntos_clase) > 0:
+                replace_flag = len(puntos_clase) < descriptores_por_clase
+                indices = np.random.choice(len(puntos_clase), descriptores_por_clase, replace=replace_flag)
+                balanced_data.append(puntos_clase[indices])
+            else:
+                balanced_data.append(np.tile(self.centroids[j], (descriptores_por_clase, 1)))
+                
+            balanced_labels.append(np.full(descriptores_por_clase, j))
+            
+        self.dataset_array = np.vstack(balanced_data)
+        self.final_labels = np.concatenate(balanced_labels)
 
-        labeled_data = np.hstack((dataset_array, (final_labels + 1)[:, np.newaxis]))
+        labeled_data = np.hstack((self.dataset_array, (self.final_labels + 1)[:, np.newaxis]))
         
         csv_path = os.path.join(folder_path, "indexed_database.csv")
         np.savetxt(csv_path, labeled_data, fmt='%d', delimiter=',', header='R,G,B,Clase', comments='')
         
         print(f"Indexed Database guardada en: {csv_path}")
 
-        return self.centroids, converged_iter
+        return self.centroids, converged_iter, history_centroids
 
-    def segmentar_con_imagen_prueba(self, image_path):
-        if self.centroids is None:
-            return None, None
-            
-        img = cv2.imread(image_path)
-        if img is None:
-            return None, None
-            
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        pixels = img.reshape((-1, 3)).astype(np.float32)
+    def segmentar_imagen_con_puntos(self, img_bgr, puntos_y, puntos_x):
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        pixels = img_rgb.reshape((-1, 3)).astype(np.float32)
         
+        # Medir distancias para toda la imagen para poder dibujar las cajas
         distances = np.linalg.norm(pixels[:, np.newaxis] - self.centroids, axis=2)
         labels = np.argmin(distances, axis=1)
         
-        img_con_cajas = img.copy()
-        labels_2d = labels.reshape(img.shape[:2])
+        img_con_cajas = img_rgb.copy()
+        labels_2d = labels.reshape(img_rgb.shape[:2])
         
+        # 1. Dibujar Cajas y Textos (Misma lógica segura)
         for j in range(len(self.centroids)):
             y_indices, x_indices = np.where(labels_2d == j)
             
@@ -103,49 +121,47 @@ class KMeansModel:
                 y_max = int(np.percentile(y_indices, 98))
                 
                 color_caja = (int(self.centroids[j][0]), int(self.centroids[j][1]), int(self.centroids[j][2]))
-                
                 offset = j * 8
                 
                 rect_x1 = max(0, x_min + offset)
                 rect_y1 = max(0, y_min + offset)
-                rect_x2 = min(img.shape[1], x_max - offset)
-                rect_y2 = min(img.shape[0], y_max - offset)
+                rect_x2 = min(img_rgb.shape[1], x_max - offset)
+                rect_y2 = min(img_rgb.shape[0], y_max - offset)
                 
                 cv2.rectangle(img_con_cajas, (rect_x1, rect_y1), (rect_x2, rect_y2), color_caja, 4)
                 
-                # =========================================================
-                # SOLUCIÓN: ETIQUETAS VISIBLES Y SEGURAS
-                # =========================================================
                 texto = f'C{j+1}'
                 font_scale = 1.5
                 grosor = 3
                 
-                # Calculamos cuánto mide el texto para hacerle su caja de fondo
                 (w_txt, h_txt), _ = cv2.getTextSize(texto, cv2.FONT_HERSHEY_SIMPLEX, font_scale, grosor)
-                
-                # Obligamos a que el texto empiece un poco despegado de la orilla izquierda
                 text_x = max(10, rect_x1 + 10)
-                
-                # Calculamos la altura 'Y' desfasándola por clase para que no choquen. 
-                # El 'max(h_txt + 10, ...)' garantiza que jamás será negativo (no se saldrá por arriba)
                 text_y = max(h_txt + 15, rect_y1 + h_txt + 15 + (j * 45))
+                text_y = min(text_y, img_rgb.shape[0] - 15)
                 
-                # Garantizamos que jamás se salga por abajo
-                text_y = min(text_y, img.shape[0] - 15)
-                
-                # Dibujamos un bloque negro sólido detrás del texto
-                cv2.rectangle(img_con_cajas, 
-                              (text_x - 5, text_y - h_txt - 5), 
-                              (text_x + w_txt + 5, text_y + 8), 
-                              (0, 0, 0), -1) 
-                
-                # Escribimos el texto encima del bloque negro usando el color de la clase
-                cv2.putText(img_con_cajas, texto, (text_x, text_y), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_caja, grosor) 
-                # =========================================================
+                cv2.rectangle(img_con_cajas, (text_x - 5, text_y - h_txt - 5), (text_x + w_txt + 5, text_y + 8), (0, 0, 0), -1) 
+                cv2.putText(img_con_cajas, texto, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_caja, grosor) 
 
-        counts = np.bincount(labels, minlength=len(self.centroids))
-        total_pixels = len(labels)
-        percentages = (counts / total_pixels) * 100
+        # 2. Pintar únicamente los puntos al azar que nos mandó el controlador y contarlos
+        puntos_por_clase = np.zeros(len(self.centroids), dtype=int)
         
-        return img_con_cajas, percentages
+        for i in range(len(puntos_x)):
+            px = puntos_x[i]
+            py = puntos_y[i]
+            
+            # Revisamos qué clase le tocó a esa coordenada específica
+            clase_asignada = labels_2d[py, px]
+            
+            # Sumamos al contador
+            puntos_por_clase[clase_asignada] += 1
+            
+            # Sacamos el color de esa clase
+            color_punto = (int(self.centroids[clase_asignada][0]), 
+                           int(self.centroids[clase_asignada][1]), 
+                           int(self.centroids[clase_asignada][2]))
+            
+            # Repintamos el puntito blanco original con su color matemático
+            cv2.circle(img_con_cajas, (px, py), radius=3, color=(0, 0, 0), thickness=-1)
+            cv2.circle(img_con_cajas, (px, py), radius=2, color=color_punto, thickness=-1)
+
+        return img_con_cajas, puntos_por_clase
