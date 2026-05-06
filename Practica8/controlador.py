@@ -12,14 +12,13 @@ class KMeansController:
         self.view.btn_load.clicked.connect(self.load_dataset)
         self.view.btn_run.clicked.connect(self.run_training)
         self.view.btn_test.clicked.connect(self.test_single_image)
-        # Conectamos el nuevo botón de la gráfica
         self.view.btn_plot.clicked.connect(self.plot_distribution)
 
     def load_dataset(self):
         folder_dir = QFileDialog.getExistingDirectory(self.view, "Seleccionar Carpeta del Dataset")
         if folder_dir:
             self.dataset_path = folder_dir
-            self.view.lbl_img_original.setText(f"Dataset cargado:\n{folder_dir}")
+            self.view.lbl_img_main.setText(f"Dataset cargado:\n{folder_dir}")
             self.view.btn_run.setEnabled(True)
             self.view.lbl_info.setText("Listo para entrenar.")
 
@@ -41,9 +40,9 @@ class KMeansController:
                 print(f"Clase C{i+1}: RGB({int(c[0])}, {int(c[1])}, {int(c[2])})")
             print(f"Iteración de convergencia: {converged_iter}")
             
-            self.view.lbl_img_segmented.setText("Clasificador\nEntrenado")
+            self.view.lbl_img_main.setText("Clasificador K-Means Entrenado.\nPresiona 'Probar Imagen'")
             self.view.btn_test.setEnabled(True) 
-            self.view.btn_plot.setEnabled(True) # Habilitamos el botón de la gráfica
+            self.view.btn_plot.setEnabled(True)
         else:
             self.view.lbl_info.setText("Error: No se encontraron imágenes.")
 
@@ -51,51 +50,34 @@ class KMeansController:
         if self.model.dataset_array is None or self.model.centroids is None:
             return
 
-        # Preparamos los datos
         data = self.model.dataset_array
         centroids = self.model.centroids
 
-        # Si hay demasiados puntos, graficamos solo una muestra
         if len(data) > 2000:
             indices = np.random.choice(len(data), 2000, replace=False)
             data = data[indices]
 
         fig, ax = plt.subplots(figsize=(9, 7))
 
-        # =========================================================
-        # 1. DIBUJAR LAS DIVISIONES (Fronteras de Decisión)
-        # =========================================================
-        # Creamos una cuadrícula invisible que cubre todo el gráfico (de 0 a 255)
         x_min, x_max = 0, 255
         y_min, y_max = 0, 255
         xx, yy = np.meshgrid(np.arange(x_min, x_max + 1, 2),
                              np.arange(y_min, y_max + 1, 2))
         
-        # Juntamos las coordenadas X (Rojo) y Y (Verde)
         grid_points = np.c_[xx.ravel(), yy.ravel()]
-        
-        # Tomamos solo los valores Rojo y Verde de los centroides
         centroids_2d = centroids[:, :2]
         
-        # Calculamos a qué centroide pertenece cada punto de la cuadrícula
         distances = np.linalg.norm(grid_points[:, np.newaxis] - centroids_2d, axis=2)
         Z = np.argmin(distances, axis=1)
         Z = Z.reshape(xx.shape)
         
-        # Pintamos las regiones en el fondo con colores suaves
         ax.contourf(xx, yy, Z, alpha=0.15, cmap='tab10')
-        # =========================================================
 
-        # 2. Graficamos las muestras (píxeles reales)
         colors = data / 255.0 
         ax.scatter(data[:, 0], data[:, 1], c=colors, marker='o', alpha=0.6, edgecolors='none', label='Muestras')
 
-        # 3. Graficamos los Centroides y sus Nombres
         for i, (cx, cy) in enumerate(centroids_2d):
-            # Dibujamos la 'X' negra
             ax.scatter(cx, cy, c='black', linewidth=2, marker='X', s=250, zorder=5)
-            
-            # Ponemos el texto C1, C2, C3 arribita de la X
             ax.text(cx, cy + 8, f'C{i+1}', fontsize=12, fontweight='bold', 
                     color='black', ha='center', va='bottom', 
                     bbox=dict(facecolor='white', alpha=0.7, edgecolor='black', pad=2), zorder=6)
@@ -104,7 +86,6 @@ class KMeansController:
         ax.set_xlabel('Intensidad de Rojo (R)')
         ax.set_ylabel('Intensidad de Verde (G)')
         
-        # Limitamos los ejes al espacio de color real
         ax.set_xlim(0, 255)
         ax.set_ylim(0, 255)
         ax.grid(True, linestyle='--', alpha=0.4)
@@ -112,15 +93,16 @@ class KMeansController:
         plt.show()
 
     def test_single_image(self):
-        file_name, _ = QFileDialog.getOpenFileName(self.view, "Seleccionar Imagen a Segmentar", "", "Images (*.png *.jpg *.jpeg)")
+        file_name, _ = QFileDialog.getOpenFileName(self.view, "Seleccionar Imagen a Analizar", "", "Images (*.png *.jpg *.jpeg)")
         if file_name:
-            original_img, segmented_img, percentages = self.model.segmentar_con_imagen_prueba(file_name)
+            # Ahora el modelo solo nos devuelve la imagen con cajas y los porcentajes
+            img_result, percentages = self.model.segmentar_con_imagen_prueba(file_name)
             
-            if original_img is not None:
-                self.view.display_image(self.view.lbl_img_original, original_img)
-                self.view.display_image(self.view.lbl_img_segmented, segmented_img)
+            if img_result is not None:
+                # Enviamos la imagen al único panel que tenemos
+                self.view.display_image(self.view.lbl_img_main, img_result)
                 
-                resultado_texto = "Clasificación de la imagen:\n"
+                resultado_texto = "Clasificación:\n"
                 for i, pct in enumerate(percentages):
                     resultado_texto += f"C{i+1}: {pct:.2f}%  "
                 

@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-                             QLabel, QFileDialog, QSpinBox, QMessageBox, QSizePolicy)
+                             QLabel, QFileDialog, QSpinBox, QSizePolicy)
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt
 
@@ -9,9 +9,8 @@ class KMeansView(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("Práctica 7 - Segmentación (K-Means)")
-        # Incrementamos el tamaño general de la ventana
-        self.resize(1200, 700) 
+        self.setWindowTitle("Práctica 7 - Detección por Segmentación (K-Means)")
+        self.resize(1000, 700) 
         
         self.setStyleSheet("""
             QWidget {
@@ -68,12 +67,8 @@ class KMeansView(QWidget):
         self.btn_test = QPushButton("3. Probar Imagen")
         self.btn_test.setEnabled(False)
 
-        # ... (debajo de self.btn_test = QPushButton("3. Probar Imagen")) ...
-        
-        self.btn_plot = QPushButton("4. Ver Distribución (3D)")
+        self.btn_plot = QPushButton("4. Ver Distribución (2D)")
         self.btn_plot.setEnabled(False)
-
-        control_layout.addWidget(self.btn_plot) # AGREGAMOS ESTO AL LAYOUT
 
         control_layout.addWidget(self.btn_load)
         control_layout.addWidget(self.lbl_k)
@@ -82,28 +77,23 @@ class KMeansView(QWidget):
         control_layout.addWidget(self.spin_desc)
         control_layout.addWidget(self.btn_run)
         control_layout.addWidget(self.btn_test)
+        control_layout.addWidget(self.btn_plot) 
         
+        # Contenedor central para la imagen única
         images_layout = QHBoxLayout()
         
-        self.lbl_img_original = QLabel("Imagen Original")
-        self.lbl_img_original.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_img_original.setStyleSheet("border: 2px dashed #4D4DFF; background-color: #000030;")
-        self.lbl_img_original.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.lbl_img_main = QLabel("Esperando Imagen de Prueba")
+        self.lbl_img_main.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_img_main.setStyleSheet("border: 2px dashed #4D4DFF; background-color: #000030;")
+        self.lbl_img_main.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
-        self.lbl_img_segmented = QLabel("Imagen Segmentada")
-        self.lbl_img_segmented.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_img_segmented.setStyleSheet("border: 2px dashed #4D4DFF; background-color: #000030;")
-        self.lbl_img_segmented.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        images_layout.addWidget(self.lbl_img_original)
-        images_layout.addWidget(self.lbl_img_segmented)
+        images_layout.addWidget(self.lbl_img_main)
 
         self.lbl_info = QLabel("Esperando dataset...")
         self.lbl_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_info.setStyleSheet("font-size: 18px; color: #00FF00; margin-top: 10px;")
 
         main_layout.addLayout(control_layout)
-        # Le damos más proporción al área de imágenes (stretch)
         main_layout.addLayout(images_layout, stretch=1)
         main_layout.addWidget(self.lbl_info)
         
@@ -115,10 +105,13 @@ class KMeansView(QWidget):
         q_img = QImage(img_array.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(q_img)
         
-        # Ampliamos la escala de 400x400 a 550x550
-        # Añadimos SmoothTransformation para que mantenga alta calidad al redimensionar
+        # Obtenemos las dimensiones seguras del contenedor para evitar cortes
+        max_w = label.width() if label.width() > 100 else 800
+        max_h = label.height() if label.height() > 100 else 500
+        
+        # Escalado respetando relación de aspecto y con suavizado
         label.setPixmap(pixmap.scaled(
-            550, 550, 
+            max_w, max_h, 
             Qt.AspectRatioMode.KeepAspectRatio, 
             Qt.TransformationMode.SmoothTransformation
         ))
