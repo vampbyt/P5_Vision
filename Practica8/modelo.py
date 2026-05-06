@@ -5,9 +5,10 @@ import os
 class KMeansModel:
     def __init__(self):
         self.centroids = None
+        self.dataset_array = None # Guardamos los datos para graficarlos después
+        self.final_labels = None  # Guardamos las etiquetas para graficarlas después
 
-    def train_kmeans_on_dataset(self, folder_path, k, total_descriptors):
-        # 1. Leer imágenes (No indexed database)
+    def entrenamiento_kmeans_centro(self, folder_path, k, total_descriptors):
         image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         
         if not image_files:
@@ -34,7 +35,7 @@ class KMeansModel:
 
         dataset_array = np.vstack(all_descriptors)
 
-        # 2. Proceso de entrenamiento K-Means manual
+        # Proceso de entrenamiento K-Means manual
         centroid_indices = np.random.choice(dataset_array.shape[0], k, replace=False)
         centroids = dataset_array[centroid_indices]
 
@@ -61,23 +62,29 @@ class KMeansModel:
 
         self.centroids = centroids
 
-        # 3. Creación de la Indexed Database
+        # =========================================================
+        # MEJORA: Indexed Database en un solo archivo (Sin basura)
+        # =========================================================
         final_distances = np.linalg.norm(dataset_array[:, np.newaxis] - self.centroids, axis=2)
         final_labels = np.argmin(final_distances, axis=1)
+        
+        # Guardamos en la clase para la gráfica
+        self.dataset_array = dataset_array
+        self.final_labels = final_labels
 
-        indexed_folder = os.path.join(folder_path, "Indexed_Database_Output")
-        os.makedirs(indexed_folder, exist_ok=True)
-
-        for j in range(k):
-            points_in_class = dataset_array[final_labels == j]
-            file_name = os.path.join(indexed_folder, f"clase{j+1}.txt")
-            np.savetxt(file_name, points_in_class, fmt='%d', delimiter=',')
-            
-        print(f"Indexed Database generada en: {indexed_folder}")
+        # Unimos las 3 columnas RGB con 1 columna de la clase (sumamos 1 para que sea Clase 1, 2, 3...)
+        labeled_data = np.hstack((dataset_array, (final_labels + 1)[:, np.newaxis]))
+        
+        csv_path = os.path.join(folder_path, "indexed_database.csv")
+        # Guardamos todo de golpe en un solo archivo estructurado
+        np.savetxt(csv_path, labeled_data, fmt='%d', delimiter=',', header='R,G,B,Clase', comments='')
+        
+        print(f"Indexed Database optimizada y guardada en: {csv_path}")
+        # =========================================================
 
         return self.centroids, converged_iter
 
-    def segment_with_trained_model(self, image_path):
+    def segmentar_con_imagen_prueba(self, image_path):
         if self.centroids is None:
             return None, None, None
             
@@ -88,14 +95,12 @@ class KMeansModel:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         pixels = img.reshape((-1, 3)).astype(np.float32)
         
-        # Clasificamos la imagen nueva basándonos en los centroides globales ya entrenados
         distances = np.linalg.norm(pixels[:, np.newaxis] - self.centroids, axis=2)
         labels = np.argmin(distances, axis=1)
         
         segmented_pixels = self.centroids[labels].astype(np.uint8)
         segmented_img = segmented_pixels.reshape(img.shape)
         
-        # Calcular porcentajes para la clasificación final
         counts = np.bincount(labels, minlength=len(self.centroids))
         total_pixels = len(labels)
         percentages = (counts / total_pixels) * 100

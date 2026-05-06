@@ -68,6 +68,13 @@ class KMeansView(QWidget):
         self.btn_test = QPushButton("3. Probar Imagen")
         self.btn_test.setEnabled(False)
 
+        # ... (debajo de self.btn_test = QPushButton("3. Probar Imagen")) ...
+        
+        self.btn_plot = QPushButton("4. Ver Distribución (3D)")
+        self.btn_plot.setEnabled(False)
+
+        control_layout.addWidget(self.btn_plot) # AGREGAMOS ESTO AL LAYOUT
+
         control_layout.addWidget(self.btn_load)
         control_layout.addWidget(self.lbl_k)
         control_layout.addWidget(self.spin_k)
