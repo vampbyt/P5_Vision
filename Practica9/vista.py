@@ -6,6 +6,8 @@ from gtts import gTTS
 import pygame
 import tkinter as tk
 from tkinter import filedialog
+import sounddevice as sd
+import time
 
 class VistaVision:
     def __init__(self):
@@ -129,3 +131,5 @@ class VistaVision:
 
         hilo_audio = threading.Thread(target=hablar)
         hilo_audio.start()
+    
+    
